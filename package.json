@@ -1,7 +1,7 @@
 {
 	"name": "virtual_art_gallery",
 	"description": "Explore an art gallery in your browser.",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"scripts": {
 		"start": "budo src/index.js --host 0.0.0.0 --port $PORT --live -- -t [ babelify --presets [ @babel/preset-env ] ]",
 		"build": "browserify -p tinyify src/index.js | htmlify base.html > build.html",

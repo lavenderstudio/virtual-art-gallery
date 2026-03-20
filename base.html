@@ -1,12 +1,35 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Virtual Art Gallery: ARTIC paintings</title>
-    <meta name="description" content="Explore a virtual art gallery on your browser. This procedurally generated architecture displays the paintings of the Art Institute of Chicago museum.">
+    <title>Lavender Prime Studio | Virtual Art Gallery</title>
+    <meta name="description" content="Khám phá không gian triển lãm nghệ thuật ảo của Lavender Prime Studio. Trưng bày các tác phẩm hội họa độc bản và nghệ thuật số.">
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <style>
+      body {
+        margin: 0;
+        background-color: #000;
+        overflow: hidden;
+        font-family: sans-serif;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      /* Thêm hiệu ứng loading đơn giản nếu muốn */
+      #loader {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: gold;
+        font-weight: bold;
+      }
+    </style>
   </head>
   <body>
-    <script inline-htmlify></script>
+    <!-- Thẻ script này sẽ được budo/browserify tự động bơm code vào -->
+    <script src="index.js"></script>
   </body>
 </html>

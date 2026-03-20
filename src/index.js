@@ -22,7 +22,7 @@ try {
         optionalExtensions: ['EXT_texture_filter_anisotropic'],
         attributes: { 
             alpha: false,
-            antialias: true, // Thêm khử răng cưa cho tranh đẹp hơn
+            antialias: true, 
             preserveDrawingBuffer: true 
         }
     });
@@ -30,12 +30,20 @@ try {
     console.error("WebGL Error:", e);
 }
 
+// --- PHẦN THAY ĐỔI QUAN TRỌNG Ở ĐÂY ---
 const map = require('./map')();
 const mesh = require('./mesh');
 const drawMap = mesh(regl, map, useReflexion);
-const placement = require('./placement')(regl, map); 
+
+// Nạp module image (bản hợp nhất bạn đã sửa)
+const image = require('./image'); 
+
+// TRUYỀN THÊM 'image' VÀO placement
+const placement = require('./placement')(regl, map, image); 
+
 const drawPainting = require('./painting')(regl);
 const fps = require('./fps')(map, fovY);
+// ---------------------------------------
 
 const context = regl({
     cull: { enable: true, face: 'back' },
@@ -53,9 +61,10 @@ const reflexion = regl({
 
 regl.frame(({ time }) => {
     try {
-        stats.begin();
+        if (showStats) stats.begin();
         fps.tick({ time });
         
+        // Cập nhật vị trí và nạp ảnh mới khi di chuyển
         if (placement && placement.update) {
             placement.update(fps.pos, fps.fmouse[1], fovX());
         }
@@ -72,11 +81,13 @@ regl.frame(({ time }) => {
             }
             drawMap();
             const b = placement.batch();
+            // Vẽ các bức tranh đã được nạp
             if (b && b.length > 0) drawPainting(b);
         });
         
-        stats.end();
+        if (showStats) stats.end();
     } catch (err) {
+        // Tránh treo trình duyệt nếu có lỗi trong loop
         console.error("Render Loop Error:", err);
     }
 });

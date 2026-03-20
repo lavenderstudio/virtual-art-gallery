@@ -1,14 +1,5 @@
 'use strict';
 
-// Tạo texture 1x1 màu xám chuẩn để WebGL không bao giờ thiếu dữ liệu
-const createPlaceholder = (regl) => regl.texture({
-    data: [128, 128, 128, 255],
-    width: 1,
-    height: 1,
-    format: 'rgba',
-    shape: [1, 1, 4]
-});
-
 module.exports = {
     fetch: async (regl, count, quality, loadCallback, finishCallback) => {
         try {
@@ -16,23 +7,29 @@ module.exports = {
             const data = await response.json();
             if (!data || !data.objectIDs) return;
 
-            // Lấy 50 tấm đầu tiên để test
-            const ids = data.objectIDs.slice(0, Math.min(count, 50));
+            const ids = data.objectIDs.slice(0, Math.min(count, 40));
             
             for (let id of ids) {
                 const objRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
                 const obj = await objRes.json();
 
                 if (obj.primaryImageSmall) {
+                    // TẠO TEXTURE TRỐNG NGAY LẬP TỨC
+                    const tex = regl.texture({
+                        data: [200, 200, 200, 255], // Màu xám khởi tạo
+                        width: 1,
+                        height: 1
+                    });
+
                     loadCallback({
                         id: id,
                         url: obj.primaryImageSmall,
                         aspect: 1,
                         loading: false,
                         loaded: false,
-                        tex: createPlaceholder(regl), // Có texture ngay lập tức
+                        tex: tex, // Đưa đối tượng texture vào đây
                         title: obj.title || "Untitled",
-                        artist: obj.artistDisplayName || "Unknown Artist"
+                        artist: obj.artistDisplayName || "Unknown"
                     });
                 }
             }
@@ -53,7 +50,7 @@ module.exports = {
 
         img.onload = () => {
             p.aspect = img.width / img.height;
-            // Cập nhật nội dung cho texture cũ, không tạo cái mới để tránh lỗi memory
+            // CẬP NHẬT DỮ LIỆU VÀO TEXTURE ĐÃ CÓ
             p.tex({
                 data: img,
                 min: 'mipmap',
@@ -66,12 +63,11 @@ module.exports = {
 
         img.onerror = () => {
             p.loading = false;
-            p.loaded = true; // Đánh dấu xong để không cố tải lại tấm lỗi này nữa
+            p.loaded = true; 
         };
     },
 
     unload: (p) => {
-        // Giữ nguyên placeholder để không hỏng uniform WebGL
         p.loaded = false;
         p.loading = false;
     }

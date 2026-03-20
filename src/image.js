@@ -1,7 +1,7 @@
 'use strict';
 
 // Sửa lại đường dẫn để budo tìm thấy thư mục api bên trong src
-const api = require('./api'); 
+const api = require('./api/index.js'); 
 const selectedApi = new URLSearchParams(window.location.search).get("api");
 const dataAccess = api[selectedApi] || api[api.default];
 const text = require('./text');

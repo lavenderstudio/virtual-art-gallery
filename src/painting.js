@@ -3,7 +3,7 @@
 const text = require('./text');
 
 module.exports = (regl) => {
-    // Tạo một texture 1x1 màu xám dự phòng
+    // Texture 1x1 màu xám mặc định
     const fallbackTex = regl.texture({
         data: [128, 128, 128, 255],
         width: 1,
@@ -64,11 +64,11 @@ module.exports = (regl) => {
         },
 
         elements: [
-            0, 1, 2, 3, 2, 1, // Front
-            1, 0, 5, 4, 5, 0, // Contour
+            0, 1, 2, 3, 2, 1, 
+            1, 0, 5, 4, 5, 0, 
             3, 1, 7, 5, 7, 1,
             0, 2, 4, 6, 4, 2,
-            8, 9, 4, 5, 4, 9, // Shadow
+            8, 9, 4, 5, 4, 9, 
             9, 11, 5, 7, 5, 11,
             11, 10, 7, 6, 7, 10,
             10, 8, 6, 4, 6, 8,
@@ -77,12 +77,9 @@ module.exports = (regl) => {
         uniforms: {
             model: regl.prop('model'),
             yScale: regl.prop('yScale'),
-            // SỬA LẠI Ở ĐÂY: Kiểm tra kiểu function để xác định texture hợp lệ
+            // KIỂM TRA ĐƠN GIẢN: Nếu chưa có tex (null) thì dùng fallback ngay
             tex: (context, props) => {
-                if (props.tex && typeof props.tex === 'function') {
-                    return props.tex;
-                }
-                return fallbackTex;
+                return (props.tex) ? props.tex : fallbackTex;
             }
         },
 

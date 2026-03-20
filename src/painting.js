@@ -3,7 +3,7 @@
 const text = require('./text');
 
 module.exports = (regl) => {
-    // Tạo một texture 1x1 màu xám dự phòng ngay tại đây
+    // Tạo một texture 1x1 màu xám dự phòng
     const fallbackTex = regl.texture({
         data: [128, 128, 128, 255],
         width: 1,
@@ -38,7 +38,6 @@ module.exports = (regl) => {
             float wrapping = 0.005 * sign(uv.x-.5) * (1.-uv.z);
             float sideShading = pow(uv.z/4.0, 0.1);
             
-            // Texture lookup
             vec3 col = texture2D(tex, uv.xy - vec2(wrapping, 0.)).rgb;
             col *= mix(sideShading, 1., frontMask);
             gl_FragColor = mix(vec4(0.,0.,0.,shadowAlpha), vec4(col,1.), paintingMask);
@@ -77,9 +76,13 @@ module.exports = (regl) => {
 
         uniforms: {
             model: regl.prop('model'),
-            // KIỂM TRA: Nếu p.tex không tồn tại hoặc lỗi, dùng fallbackTex ngay
+            yScale: regl.prop('yScale'),
+            // SỬA LẠI Ở ĐÂY: Kiểm tra kiểu function để xác định texture hợp lệ
             tex: (context, props) => {
-                return (props.tex && props.tex.width > 0) ? props.tex : fallbackTex;
+                if (props.tex && typeof props.tex === 'function') {
+                    return props.tex;
+                }
+                return fallbackTex;
             }
         },
 
@@ -96,11 +99,9 @@ module.exports = (regl) => {
     });
 
     return function (batch) {
-        // Lọc bỏ những phần tử rác trong batch nếu có
         const validBatch = batch.filter(p => p && p.model);
         if (validBatch.length > 0) {
             painting(validBatch);
-            // Bọc drawText trong try-catch để tránh lỗi font làm sập web
             try {
                 drawText(validBatch);
             } catch (e) {}

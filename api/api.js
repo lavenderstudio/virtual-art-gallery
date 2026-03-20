@@ -1,9 +1,10 @@
 'use strict';
 
 module.exports = {
-    // Đổi default thành "met"
+    // Ưu tiên Met Museum API
     default: "met",
-    // Thêm dòng require file met.js vừa tạo
+    
+    // Các nguồn cung cấp dữ liệu
     met: require("./met"),
     artic: require("./artic"),
     local: require("./local")

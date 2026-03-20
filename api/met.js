@@ -1,26 +1,27 @@
 'use strict';
-
 module.exports = async function () {
-    const searchUrl = 'https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=painting';
-    const objectUrl = 'https://collectionapi.metmuseum.org/public/collection/v1/objects/';
-
     try {
-        const response = await fetch(searchUrl);
-        const data = await response.json();
-        // Lấy 40 bức tranh đầu tiên
-        const ids = data.objectIDs.slice(0, 40);
+        // Tìm tranh phong cảnh (Landscape) cho Lavender Prime Studio của bạn
+        const search = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=landscape');
+        const searchData = await search.json();
+        const ids = searchData.objectIDs.slice(0, 20); // Lấy ít thôi để test (20 cái)
 
-        const promises = ids.map(id => 
-            fetch(objectUrl + id)
-                .then(res => res.json())
-                .then(obj => obj.primaryImageSmall)
-                .catch(() => null)
-        );
-
-        const images = await Promise.all(promises);
-        return images.filter(url => url !== null && url !== "");
+        const images = [];
+        for (let id of ids) {
+            try {
+                const res = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
+                const obj = await res.json();
+                if (obj.primaryImageSmall) {
+                    images.push({
+                        url: obj.primaryImageSmall,
+                        title: obj.title,
+                        aspect: 1 // Tạm thời để 1, ảnh sẽ tự cập nhật khi load xong
+                    });
+                }
+            } catch (e) { continue; }
+        }
+        return images;
     } catch (e) {
-        console.error("Lỗi Met API:", e);
         return [];
     }
 };

@@ -4,6 +4,7 @@ const text = require('./text');
 
 module.exports = (regl) => {
     // Tạo một texture 1x1 màu xám dự phòng ngay tại đây
+    // Nếu ảnh chưa load xong, WebGL sẽ dùng cái này thay vì báo lỗi "bad data"
     const fallbackTex = regl.texture({
         data: [128, 128, 128, 255],
         width: 1,
@@ -18,6 +19,7 @@ module.exports = (regl) => {
         uniform sampler2D tex;
         varying vec3 uv;
 
+        // Hàm xấp xỉ lỗi để tính toán đổ bóng Gaussian nhanh
         vec4 erf(vec4 x) {
             vec4 s = sign(x), a = abs(x);
             x = 1.0 + (0.278393 + (0.230389 + 0.078108 * (a * a)) * a) * a;
@@ -25,6 +27,7 @@ module.exports = (regl) => {
             return s - s / (x * x);
         }
 
+        // Tạo mặt nạ đổ bóng cho khung tranh
         float boxShadow(vec2 lower, vec2 upper, vec2 point, float sigma) {
             vec4 query = vec4(point - lower, upper - point);
             vec4 integral = 0.5 + 0.5 * erf(query * (sqrt(0.5) / sigma));
@@ -38,11 +41,14 @@ module.exports = (regl) => {
             float wrapping = 0.005 * sign(uv.x-.5) * (1.-uv.z);
             float sideShading = pow(uv.z/4.0, 0.1);
             
-            // Texture lookup
+            // Lấy dữ liệu màu từ texture
             vec3 col = texture2D(tex, uv.xy - vec2(wrapping, 0.)).rgb;
             col *= mix(sideShading, 1., frontMask);
+            
+            // Trộn giữa bóng đổ và màu của tranh
             gl_FragColor = mix(vec4(0.,0.,0.,shadowAlpha), vec4(col,1.), paintingMask);
         }`,
+
         vert: `
         precision highp float;
         uniform mat4 proj, view, model;
@@ -58,9 +64,9 @@ module.exports = (regl) => {
 
         attributes: {
             pos: [
-                0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, // Front
-                0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, // Contour
-                -0.1, -0.1, 0, 1.1, -0.1, 0, -0.1, 1.1, 0, 1.1, 1.1, 0 // Shadow
+                0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, // Mặt trước (Front)
+                0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, // Viền (Contour)
+                -0.1, -0.1, 0, 1.1, -0.1, 0, -0.1, 1.1, 0, 1.1, 1.1, 0 // Bóng (Shadow)
             ]
         },
 
@@ -77,9 +83,14 @@ module.exports = (regl) => {
 
         uniforms: {
             model: regl.prop('model'),
-            // KIỂM TRA: Nếu p.tex không tồn tại hoặc lỗi, dùng fallbackTex ngay
+            yScale: regl.prop('yScale'),
+            // KIỂM TRA NGHIÊM NGẶT: 
+            // Nếu props.tex không phải là một texture hợp lệ của regl, dùng fallbackTex
             tex: (context, props) => {
-                return (props.tex && props.tex.width > 0) ? props.tex : fallbackTex;
+                if (props.tex && typeof props.tex === 'function') {
+                    return props.tex;
+                }
+                return fallbackTex;
             }
         },
 
@@ -96,14 +107,17 @@ module.exports = (regl) => {
     });
 
     return function (batch) {
-        // Lọc bỏ những phần tử rác trong batch nếu có
+        // Lọc để chỉ vẽ những bức tranh có dữ liệu model hợp lệ
         const validBatch = batch.filter(p => p && p.model);
         if (validBatch.length > 0) {
             painting(validBatch);
-            // Bọc drawText trong try-catch để tránh lỗi font làm sập web
+            
+            // Vẽ nhãn văn bản (tên tác giả, tác phẩm)
             try {
                 drawText(validBatch);
-            } catch (e) {}
+            } catch (e) {
+                // Tránh để lỗi font chữ làm treo toàn bộ render loop
+            }
         }
     }
 };

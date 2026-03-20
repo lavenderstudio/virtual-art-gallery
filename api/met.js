@@ -1,27 +1,36 @@
 'use strict';
+
 module.exports = async function () {
     try {
-        // Tìm tranh phong cảnh (Landscape) cho Lavender Prime Studio của bạn
-        const search = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=landscape');
-        const searchData = await search.json();
-        const ids = searchData.objectIDs.slice(0, 20); // Lấy ít thôi để test (20 cái)
+        // 1. Tìm kiếm tranh phong cảnh có ảnh
+        const searchRes = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=landscape');
+        const searchData = await searchRes.json();
+        
+        if (!searchData.objectIDs) return [];
 
-        const images = [];
+        // 2. Lấy 20 ID đầu tiên
+        const ids = searchData.objectIDs.slice(0, 20);
+        const imageUrls = [];
+
+        // 3. Chạy vòng lặp lấy chi tiết từng ảnh
         for (let id of ids) {
             try {
                 const res = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
                 const obj = await res.json();
+                
+                // Quan trọng: Chỉ lấy link ảnh (chuỗi string) để khớp với image/index.js
                 if (obj.primaryImageSmall) {
-                    images.push({
-                        url: obj.primaryImageSmall,
-                        title: obj.title,
-                        aspect: 1 // Tạm thời để 1, ảnh sẽ tự cập nhật khi load xong
-                    });
+                    imageUrls.push(obj.primaryImageSmall);
                 }
-            } catch (e) { continue; }
+            } catch (e) {
+                continue; // Bỏ qua nếu một ảnh bị lỗi
+            }
         }
-        return images;
+
+        console.log(`Đã tải thành công ${imageUrls.length} ảnh từ Met Museum`);
+        return imageUrls; 
     } catch (e) {
+        console.error("Lỗi Met API:", e);
         return [];
     }
 };

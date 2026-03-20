@@ -1,8 +1,8 @@
 'use strict';
-// Lưu ý: Module image sẽ được truyền từ index.js vào, 
-// nhưng ta vẫn giữ require để tránh lỗi reference nếu file khác gọi.
-const texture = require('./image'); 
 const mat4 = require('gl-mat4');
+
+// Chúng ta sẽ không require trực tiếp ở đây để tránh xung đột đường dẫn
+// Thay vào đó dùng textureProvider được truyền vào từ index.js
 
 const renderDist = 20;
 const loadDist = 20;
@@ -10,7 +10,7 @@ const unloadDist = 40;
 const fovxMargin = Math.PI/32;
 
 const culling = (ppos, pangle, fovx, {vseg, angle}) => {
-    if (!vseg) return true; // Nếu chưa tính xong vseg thì cứ cho hiển thị
+    if (!vseg) return true; 
     const sx1 = vseg[0][0] - ppos[0];
     const sy1 = vseg[0][1] - ppos[2];
     const sx2 = vseg[1][0] - ppos[0];
@@ -25,17 +25,17 @@ const culling = (ppos, pangle, fovx, {vseg, angle}) => {
     return true;
 };
 
-// Nhận thêm tham số 'imageModule' được truyền từ index.js
 module.exports = (regl, {placements, getAreaIndex}, imageModule) => {
-    const textureProvider = imageModule || texture;
+    // Ưu tiên module được truyền vào từ index.js
+    const textureProvider = imageModule; 
     let batch = [], shownBatch = [];
     let fetching = false;
 
     const loadPainting = (p) => {
-        // Sử dụng batch.length để xác định vị trí tranh tiếp theo trên tường
+        // KIỂM TRA: Nếu không có vị trí đặt tranh thì dừng
+        if (batch.length >= placements.length) return;
+        
         const seg = placements[batch.length];
-        if (!seg) return;
-
         const dir = [seg[1][0] - seg[0][0], seg[1][1] - seg[0][1]];
         const norm = [seg[1][1] - seg[0][1], seg[0][0] - seg[1][0]];
         const segLen = Math.hypot(dir[0], dir[1]);
@@ -55,7 +55,9 @@ module.exports = (regl, {placements, getAreaIndex}, imageModule) => {
             2 * globalScale,
             2 * width * vert + 0.1 * horiz];
             
-        const text = p.textGen(width);
+        // Quan trọng: textGen phải được gọi để tạo texture chữ
+        const text = p.textGen ? p.textGen(width) : null;
+        
         const d1 = width / segLen;
         const d2 = 0.005 / Math.hypot(norm[0], norm[1]);
         
@@ -74,37 +76,45 @@ module.exports = (regl, {placements, getAreaIndex}, imageModule) => {
         
         const textmodel = [];
         mat4.fromTranslation(textmodel, [pos[0], 1.7 - globalScale, pos[2]]);
-        mat4.scale(textmodel, textmodel, [2,2,2]);
+        mat4.scale(textmodel, textmodel, [0.5, 0.5, 0.5]); // Thu nhỏ nhãn chữ
         mat4.rotateY(textmodel, textmodel, -angle);
         
         batch.push({ ...p, vseg, angle, model, textmodel, text, width });
     };
 
-    // Khởi tạo fetch lần đầu
-    fetching = true;
-    textureProvider.fetch(regl, 20, "high", loadPainting, () => fetching = false);
+    // Khởi tạo lấy dữ liệu ngay lập tức
+    if (textureProvider && textureProvider.fetch) {
+        fetching = true;
+        textureProvider.fetch(regl, 20, "low", loadPainting, () => {
+            fetching = false;
+        });
+    }
 
     return {
         update: (pos, angle, fovX) => {
             let index = getAreaIndex(pos[0], pos[2], 4);
-            if (index === -1) index = 0;
+            if (index === -1) index = 0; 
 
-            // Quản lý nạp/hủy texture để tiết kiệm RAM
-            batch.forEach((t, i) => {
+            // Duyệt qua tất cả tranh đã có trong batch
+            for (let i = 0; i < batch.length; i++) {
+                const p = batch[i];
                 if (i < index - unloadDist || i > index + unloadDist) {
-                    textureProvider.unload(t);
+                    textureProvider.unload(p);
                 } else if (i > index - renderDist && i < index + renderDist) {
-                    textureProvider.load(regl, t, "high");
+                    // Chỉ load nếu chưa có tex
+                    if (!p.tex && !p.loading) {
+                        textureProvider.load(regl, p, "low");
+                    }
                 }
-            });
+            }
 
-            // LỌC HIỂN THỊ: Cho phép vẽ ngay cả khi t.tex chưa có (để hiện mockup)
+            // Lọc hiển thị: Chỉ cần nằm trong tầm nhìn là vẽ (không đợi p.tex)
             shownBatch = batch.filter(t => culling(pos, angle, fovX, t));
 
-            // Fetch thêm tranh khi đi gần đến cuối danh sách hiện tại
-            if (batch.length < index + loadDist && !fetching) {
+            // Fetch thêm tranh nếu sắp hết danh sách
+            if (batch.length < index + loadDist && !fetching && batch.length < placements.length) {
                 fetching = true;
-                textureProvider.fetch(regl, 10, "high", loadPainting, () => fetching = false);
+                textureProvider.fetch(regl, 10, "low", loadPainting, () => fetching = false);
             }
         },
         batch: () => shownBatch

@@ -1,6 +1,6 @@
 'use strict';
 
-// Tạo một texture màu xám 1x1 pixel chuẩn WebGL để không bao giờ bị lỗi "missing uniform tex"
+// Tạo texture 1x1 màu xám chuẩn để WebGL không bao giờ thiếu dữ liệu
 const createPlaceholder = (regl) => regl.texture({
     data: [128, 128, 128, 255],
     width: 1,
@@ -14,9 +14,11 @@ module.exports = {
         try {
             const response = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=painting');
             const data = await response.json();
-            if (!data.objectIDs) return;
+            if (!data || !data.objectIDs) return;
 
-            const ids = data.objectIDs.slice(0, count);
+            // Lấy 50 tấm đầu tiên để test
+            const ids = data.objectIDs.slice(0, Math.min(count, 50));
+            
             for (let id of ids) {
                 const objRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
                 const obj = await objRes.json();
@@ -24,13 +26,13 @@ module.exports = {
                 if (obj.primaryImageSmall) {
                     loadCallback({
                         id: id,
-                        url: obj.primaryImageSmall, // URL ảnh từ Met
+                        url: obj.primaryImageSmall,
                         aspect: 1,
                         loading: false,
                         loaded: false,
-                        tex: createPlaceholder(regl), // Ép có texture ngay lập tức
-                        title: obj.title,
-                        artist: obj.artistDisplayName
+                        tex: createPlaceholder(regl), // Có texture ngay lập tức
+                        title: obj.title || "Untitled",
+                        artist: obj.artistDisplayName || "Unknown Artist"
                     });
                 }
             }
@@ -51,7 +53,7 @@ module.exports = {
 
         img.onload = () => {
             p.aspect = img.width / img.height;
-            // Ghi đè texture placeholder bằng ảnh thật
+            // Cập nhật nội dung cho texture cũ, không tạo cái mới để tránh lỗi memory
             p.tex({
                 data: img,
                 min: 'mipmap',
@@ -64,12 +66,12 @@ module.exports = {
 
         img.onerror = () => {
             p.loading = false;
-            p.loaded = true; // Dừng nạp nhưng vẫn giữ texture xám để không lỗi WebGL
+            p.loaded = true; // Đánh dấu xong để không cố tải lại tấm lỗi này nữa
         };
     },
 
     unload: (p) => {
-        // Không destroy hoàn toàn để tránh lỗi uniform, chỉ trả về màu xám nếu cần
+        // Giữ nguyên placeholder để không hỏng uniform WebGL
         p.loaded = false;
         p.loading = false;
     }

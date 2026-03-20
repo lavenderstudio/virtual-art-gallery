@@ -1,46 +1,37 @@
 'use strict';
 
-// Hàm tạo ảnh 1x1 pixel màu xám để làm placeholder khi ảnh thật chưa load xong
-const emptyImage = (regl) => regl.texture({
-    data: new Uint8Array([128, 128, 128, 255]), // RGBA: Màu xám
+// Tạo một texture màu xám 1x1 pixel chuẩn WebGL để không bao giờ bị lỗi "missing uniform tex"
+const createPlaceholder = (regl) => regl.texture({
+    data: [128, 128, 128, 255],
     width: 1,
     height: 1,
     format: 'rgba',
-    type: 'uint8'
+    shape: [1, 1, 4]
 });
-
-const cache = {};
 
 module.exports = {
     fetch: async (regl, count, quality, loadCallback, finishCallback) => {
         try {
-            // Thử nạp danh sách tranh từ Met Museum
             const response = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=painting');
             const data = await response.json();
-            
             if (!data.objectIDs) return;
-            const ids = data.objectIDs.slice(0, count);
 
+            const ids = data.objectIDs.slice(0, count);
             for (let id of ids) {
                 const objRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
                 const obj = await objRes.json();
 
                 if (obj.primaryImageSmall) {
-                    const painting = {
+                    loadCallback({
                         id: id,
-                        url: obj.primaryImageSmall,
-                        aspect: 1.0, // Mặc định
+                        url: obj.primaryImageSmall, // URL ảnh từ Met
+                        aspect: 1,
                         loading: false,
-                        tex: emptyImage(regl), // Gán ngay khung xám
-                        textGen: (width) => {
-                            // Tạo nhãn tên tranh
-                            return {
-                                title: obj.title || "Unknown",
-                                artist: obj.artistDisplayName || "Unknown Artist"
-                            };
-                        }
-                    };
-                    loadCallback(painting);
+                        loaded: false,
+                        tex: createPlaceholder(regl), // Ép có texture ngay lập tức
+                        title: obj.title,
+                        artist: obj.artistDisplayName
+                    });
                 }
             }
         } catch (e) {
@@ -55,13 +46,13 @@ module.exports = {
         p.loading = true;
 
         const img = new Image();
-        // KHÔNG dùng proxy Google nữa, thử nạp trực tiếp với Anonymous CORS
         img.crossOrigin = "anonymous"; 
         img.src = p.url;
 
         img.onload = () => {
             p.aspect = img.width / img.height;
-            p.tex = regl.texture({
+            // Ghi đè texture placeholder bằng ảnh thật
+            p.tex({
                 data: img,
                 min: 'mipmap',
                 mag: 'linear',
@@ -72,15 +63,13 @@ module.exports = {
         };
 
         img.onerror = () => {
-            console.warn("Không nạp được ảnh trực tiếp, giữ khung xám:", p.url);
             p.loading = false;
-            p.loaded = true; // Đánh dấu là xong để không nạp lại nữa
+            p.loaded = true; // Dừng nạp nhưng vẫn giữ texture xám để không lỗi WebGL
         };
     },
 
     unload: (p) => {
-        if (p.tex && p.tex.destroy) p.tex.destroy();
-        p.tex = null;
+        // Không destroy hoàn toàn để tránh lỗi uniform, chỉ trả về màu xám nếu cần
         p.loaded = false;
         p.loading = false;
     }

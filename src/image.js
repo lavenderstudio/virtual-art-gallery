@@ -1,12 +1,27 @@
 'use strict';
 
-// GỌI TRỰC TIẾP FILE MET.JS NẰM CÙNG THƯ MỤC SRC
-const dataAccess = require('./met.js'); 
-const text = require('./text');
+// DÁN TRỰC TIẾP LOGIC CỦA MET.JS VÀO ĐÂY
+const dataAccess = async function () {
+    try {
+        const searchRes = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=landscape');
+        const searchData = await searchRes.json();
+        if (!searchData.objectIDs) return [];
+        const ids = searchData.objectIDs.slice(0, 20);
+        const imageUrls = [];
+        for (let id of ids) {
+            try {
+                const res = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
+                const obj = await res.json();
+                if (obj.primaryImageSmall) imageUrls.push(obj.primaryImageSmall);
+            } catch (e) { continue; }
+        }
+        return imageUrls;
+    } catch (e) { return []; }
+};
 
+const text = require('./text');
 let paintingCache = {};
 let unusedTextures = [];
-
 const resizeCanvas = document.createElement('canvas');
 resizeCanvas.width = resizeCanvas.height = 1024; 
 const ctx = resizeCanvas.getContext('2d');
@@ -25,21 +40,19 @@ async function loadImage(regl, url) {
 		) : 0;
 	}
 	try {
-		return new Promise((resolve, reject) => {
+		return new Promise((resolve) => {
 			const img = new Image();
 			img.crossOrigin = "anonymous"; 
 			img.src = url;
 			img.onload = () => {
 				ctx.drawImage(img, 0, 0, resizeCanvas.width, resizeCanvas.height);
-				const tex = (unusedTextures.pop() || regl.texture)({
-					data: resizeCanvas,
-					min: 'mipmap', mipmap: 'nice', aniso, flipY: true
-				});
-				resolve([tex, width => text.init((unusedTextures.pop() || regl.texture), "Lavender Prime", width), img.width / img.height]);
+				resolve([(unusedTextures.pop() || regl.texture)({data: resizeCanvas, min: 'mipmap', mipmap: 'nice', aniso, flipY: true}),
+				width => text.init((unusedTextures.pop() || regl.texture), "Lavender Prime", width),
+				img.width / img.height]);
 			};
 			img.onerror = () => resolve(emptyImage(regl));
 		});
-	} catch(e) { return emptyImage(regl); }
+	} catch(e) { return resolve(emptyImage(regl)); }
 }
 
 module.exports = {
